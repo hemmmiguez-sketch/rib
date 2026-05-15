@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RIB — Reporte de Informe Biológico</title>
+  <!-- Librería de lectura de códigos de barras (cdnjs) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1a1a1a;
+      --surface:  #242424;
+      --surface2: #2c2c2c;
+      --border:   #333;
+      --acento:   #4caf50;
+      --texto:    #f0f0f0;
+      --muted:    #888;
+      --radio:    12px;
+      /* Nutri-Score */
+      --ns-a: #038141;  --ns-b: #85bb2f;  --ns-c: #fecb02;
+      --ns-d: #ee8100;  --ns-e: #e63e11;
+      /* NOVA */
+      --nova-1: #038141; --nova-2: #85bb2f;
+      --nova-3: #ee8100; --nova-4: #e63e11;
+      /* Riesgo */
+      --riesgo-alto:  #e05252;
+      --riesgo-medio: #f5a623;
+      --riesgo-bajo:  #52a879;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--texto);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 60px;
+      gap: 20px;
+    }
+
+    /* ── Header ── */
+    header { width: 100%; max-width: 640px; text-align: center; }
+    header h1 {
+      font-size: 32px; font-weight: 800;
+      letter-spacing: 6px; color: var(--acento);
+    }
+    header p {
+      font-size: 12px; color: var(--muted);
+      margin-top: 4px; letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    /* ── Tarjeta de entrada ── */
+    .input-card {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radio);
+      overflow: hidden;
+    }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; border-bottom: 1px solid var(--border); }
+    .tab {
+      flex: 1; padding: 14px 8px;
+      border: none; border-bottom: 2px solid transparent;
+      background: transparent; color: var(--muted);
+      font-size: 13px; font-family: inherit;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .tab:hover { color: var(--texto); }
+    .tab.activo {
+      color: var(--acento);
+      border-bottom-color: var(--acento);
+      font-weight: 600;
+    }
+
+    /* ── Paneles de tab ── */
+    .tab-pane { padding: 20px; display: none; }
+    .tab-pane.activo { display: block; }
+
+    /* ── Cámara ── */
+    #camara-preview {
+      width: 100%; min-height: 200px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+    #camara-preview video  { width: 100% !important; display: block; }
+    #camara-preview canvas { display: none !important; }
+
+    .btn-camara {
+      width: 100%; padding: 13px;
+      border-radius: 8px; border: none;
+      background: var(--acento); color: #fff;
+      font-size: 14px; font-weight: 600;
+      font-family: inherit; cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn-camara:hover  { opacity: 0.85; }
+    .btn-camara.parar  { background: var(--riesgo-alto); }
+    .btn-camara:disabled { opacity: 0.5; cursor: default; }
+
+    .camara-aviso {
+      font-size: 12px; color: var(--muted);
+      margin-bottom: 12px; text-align: center;
+    }
+
+    /* ── Upload ── */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px; padding: 36px 20px;
+      text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-zone:hover,
+    .upload-zone.drag-over {
+      border-color: var(--acento);
+      background: rgba(76,175,80,0.04);
+    }
+    .upload-icono { font-size: 40px; display: block; margin-bottom: 10px; }
+    .upload-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    .upload-label {
+      display: inline-block; margin-top: 14px;
+      padding: 10px 24px; border-radius: 999px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--texto); font-size: 13px;
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    .upload-label:hover { border-color: var(--acento); }
+    #input-imagen { display: none; }
+
+    .upload-preview {
+      max-width: 100%; border-radius: 8px;
+      margin-top: 14px; display: none;
+      max-height: 200px; object-fit: contain;
+    }
+
+    /* ── Manual ── */
+    .manual-hint { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .manual-row  { display: flex; gap: 10px; }
+    .manual-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--texto);
+      font-family: monospace; font-size: 15px;
+      padding: 12px 16px;
+      letter-spacing: 2px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .manual-row input:focus { border-color: var(--acento); }
+    .manual-row input::placeholder { color: var(--muted); letter-spacing: 0; font-family: inherit; }
+
+    .btn-buscar {
+      padding: 12px 22px; border-radius: 8px; border: none;
+      background: var(--acento); color: #fff;
+      font-size: 14px; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      transition: opacity 0.2s; white-space: nowrap;
+    }
+    .btn-buscar:hover { opacity: 0.85; }
+
+    /* ── Loading ── */
+    .loading {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radio);
+      padding: 48px 20px; text-align: center;
+      display: none;
+    }
+    .loading.visible { display: block; }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid var(--border);
+      border-top-color: var(--acento);
+      border-radius: 50%;
+      animation: girar 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    .loading p { color: var(--muted); font-size: 14px; }
+
+    /* ── Error ── */
+    .error-card {
+      width: 100%; max-width: 640px;
+      background: var(--surface);
+      border: 1px solid rgba(224,82,82,0.4);
+      border-radius: var(--radio);
+      padding: 28px 24px; text-align: center;
+      display: none;
+    }
+    .error-card.visible { display: block; }
+    .error-icono { font-size: 36px; display: block; margin-bottom: 10px; }
+    .error-card p { color: #e88; font-size: 14px; line-height: 1.6; }
+
+    /* ── Resultado ── */
+    .resultado {
+      width: 100%; max-width: 640px;
+      display: none; flex-direction: column; gap: 14px;
+    }
+    .resultado.visible { display: flex; }
+
+    /* ── Header del producto ── */
+    .producto-header {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radio);
+      padding: 20px;
+      display: flex; gap: 16px; align-items: flex-start;
+    }
+    .producto-imagen {
+      width: 88px; height: 88px; flex-shrink: 0;
+      border-radius: 8px; object-fit: contain;
+      background: #fff; padding: 4px;
+    }
+    .producto-sin-imagen {
+      width: 88px; height: 88px; flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center;
+      justify-content: center; font-size: 32px;
+    }
+    .producto-info { flex: 1; min-width: 0; }
+    .producto-nombre {
+      font-size: 16px; font-weight: 700;
+      line-height: 1.3; margin-bottom: 5px;
+    }
+    .producto-marca {
+      font-size: 13px; color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .producto-codigo {
+      font-size: 11px; color: var(--muted);
+      font-family: monospace;
+    }
+
+    /* ── Badges row ── */
+    .badges-row { display: flex; gap: 12px; flex-wrap: wrap; }
+
+    /* ── Widget genérico ── */
+    .widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radio);
+      padding: 16px 18px;
+      flex: 1; min-width: 200px;
+    }
+    .widget-titulo {
+      font-size: 11px; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .no-data { color: var(--muted); font-size: 13px; }
+
+    /* ── Nutri-Score ── */
+    .nutriscore-letras { display: flex; gap: 5px; align-items: center; }
+    .ns-letra {
+      width: 30px; height: 30px; border-radius: 4px;
+      display: flex; align-items: center;
+      justify-content: center;
+      font-weight: 800; font-size: 13px;
+      opacity: 0.25; color: #fff;
+      transition: opacity 0.2s;
+    }
+    .ns-letra.activo { opacity: 1; width: 38px; height: 38px; font-size: 18px; }
+    .ns-letra.a { background: var(--ns-a); }
+    .ns-letra.b { background: var(--ns-b); }
+    .ns-letra.c { background: var(--ns-c); color: #333; }
+    .ns-letra.d { background: var(--ns-d); }
+    .ns-letra.e { background: var(--ns-e); }
+
+    /* ── NOVA ── */
+    .nova-numeros { display: flex; gap: 6px; align-items: center; }
+    .nova-num {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center;
+      justify-content: center;
+      font-weight: 800; font-size: 13px;
+      opacity: 0.25; color: #fff;
+    }
+    .nova-num.activo { opacity: 1; width: 38px; height: 38px; font-size: 18px; }
+    .nova-num.n1 { background: var(--nova-1); }
+    .nova-num.n2 { background: var(--nova-2); }
+    .nova-num.n3 { background: var(--nova-3); }
+    .nova-num.n4 { background: var(--nova-4); }
+    .nova-desc  { font-size: 12px; color: var(--muted); margin-top: 7px; }
+
+    /* ── Sección ── */
+    .seccion {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radio);
+      padding: 18px 20px;
+    }
+    .seccion-titulo {
+      font-size: 12px; text-transform: uppercase;
+      letter-spacing: 1px; color: var(--muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Tabla nutricional ── */
+    .tabla-nut {
+      width: 100%; border-collapse: collapse;
+      font-size: 14px;
+    }
+    .tabla-nut tr { border-bottom: 1px solid var(--border); }
+    .tabla-nut tr:last-child { border-bottom: none; }
+    .tabla-nut td { padding: 9px 4px; }
+    .tabla-nut td:first-child { color: var(--muted); }
+    .tabla-nut td:last-child   { text-align: right; font-weight: 600; }
+    .tabla-nut .fila-e td { font-weight: 700; font-size: 15px; color: var(--texto); }
+    .tabla-nut .sub td:first-child { padding-left: 16px; font-size: 13px; }
+
+    /* ── Ingredientes ── */
+    .ingredientes-txt {
+      font-size: 13px; color: #ccc;
+      line-height: 1.7;
+    }
+
+    /* ── Aditivos ── */
+    .aditivos-lista { display: flex; flex-direction: column; gap: 8px; }
+    .aditivo-item {
+      display: flex; align-items: flex-start;
+      gap: 10px; padding: 10px 12px;
+      border-radius: 8px; font-size: 13px;
+    }
+    .aditivo-item.alto   { background: rgba(224,82,82,0.08);   border-left: 3px solid var(--riesgo-alto); }
+    .aditivo-item.medio  { background: rgba(245,166,35,0.08);  border-left: 3px solid var(--riesgo-medio); }
+    .aditivo-item.bajo   { background: rgba(82,168,121,0.08);  border-left: 3px solid var(--riesgo-bajo); }
+    .aditivo-item.desconocido { background: rgba(136,136,136,0.08); border-left: 3px solid var(--muted); }
+    .aditivo-cod {
+      font-family: monospace; font-weight: 800;
+      text-transform: uppercase; font-size: 12px;
+      min-width: 48px; padding-top: 2px;
+    }
+    .alto  .aditivo-cod { color: var(--riesgo-alto); }
+    .medio .aditivo-cod { color: var(--riesgo-medio); }
+    .bajo  .aditivo-cod { color: var(--riesgo-bajo); }
+    .desconocido .aditivo-cod { color: var(--muted); }
+    .aditivo-nombre  { font-weight: 600; margin-bottom: 2px; }
+    .aditivo-detalle { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .aditivos-ok {
+      color: var(--riesgo-bajo); font-size: 14px;
+      text-align: center; padding: 8px;
+    }
+
+    /* ── Alérgenos ── */
+    .alergenos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+    .alergeno-tag {
+      padding: 6px 14px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      background: rgba(245,166,35,0.12);
+      border: 1px solid rgba(245,166,35,0.4);
+      color: var(--riesgo-medio);
+    }
+    .alergenos-ok { font-size: 13px; color: var(--muted); }
+
+    /* ── Botón nuevo escaneo ── */
+    .btn-nuevo {
+      width: 100%; max-width: 640px;
+      padding: 14px; border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      font-size: 14px; font-family: inherit;
+      cursor: pointer; display: none;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .btn-nuevo:hover { color: var(--texto); border-color: var(--texto); }
+  </style>
+</head>
+<body>
+
+  <!-- Cabecera -->
+  <header>
+    <h1>RIB</h1>
+    <p>Reporte de Informe Biológico de Alimentos</p>
+  </header>
+
+  <!-- ── Tarjeta de entrada ── -->
+  <div class="input-card" id="input-card">
+    <div class="tabs">
+      <button class="tab activo" onclick="cambiarTab('camara',this)">📷 Cámara</button>
+      <button class="tab"        onclick="cambiarTab('foto',this)">🖼️ Foto</button>
+      <button class="tab"        onclick="cambiarTab('manual',this)">⌨️ Manual</button>
+    </div>
+
+    <!-- Pestaña: Cámara -->
+    <div class="tab-pane activo" id="pane-camara">
+      <p class="camara-aviso">Apunta la cámara al código de barras del producto</p>
+      <div id="camara-preview"></div>
+      <button class="btn-camara" id="btn-camara" onclick="toggleCamara()">
+        📷 Activar cámara
+      </button>
+    </div>
+
+    <!-- Pestaña: Foto -->
+    <div class="tab-pane" id="pane-foto">
+      <div class="upload-zone" id="upload-zone"
+           onclick="document.getElementById('input-imagen').click()">
+        <span class="upload-icono">🖼️</span>
+        <div style="color:var(--muted);font-size:14px;">
+          Sube una foto del código de barras
+        </div>
+        <div class="upload-sub">JPG · PNG · WEBP</div>
+        <label class="upload-label" onclick="event.stopPropagation()">
+          Seleccionar imagen
+          <input type="file" id="input-imagen" accept="image/*">
+        </label>
+      </div>
+      <img id="upload-preview" class="upload-preview" alt="Preview de imagen">
+      <!-- Contenedor oculto requerido por html5-qrcode para leer imágenes -->
+      <div id="qr-file-reader" style="display:none;"></div>
+    </div>
+
+    <!-- Pestaña: Manual -->
+    <div class="tab-pane" id="pane-manual">
+      <p class="manual-hint">
+        Escribe el número del código de barras (EAN‑13, UPC‑A, EAN‑8, etc.)
+      </p>
+      <div class="manual-row">
+        <input
+          type="text"
+          id="input-codigo"
+          placeholder="Ej: 8480017404428"
+          inputmode="numeric"
+          maxlength="14"
+          onkeydown="if(event.key==='Enter') buscarDesdeManual()"
+        >
+        <button class="btn-buscar" onclick="buscarDesdeManual()">Buscar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Loading ── -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Consultando Open Food Facts…</p>
+  </div>
+
+  <!-- ── Error ── -->
+  <div class="error-card" id="error-card">
+    <span class="error-icono">⚠️</span>
+    <p id="error-msg">Producto no encontrado</p>
+  </div>
+
+  <!-- ── Resultado ── -->
+  <div class="resultado" id="resultado"></div>
+
+  <!-- Botón nuevo escaneo -->
+  <button class="btn-nuevo" id="btn-nuevo" onclick="nuevoEscaneo()">
+    ↺ Nuevo escaneo
+  </button>
+
+  <script>
+    // ── Base de datos de aditivos ─────────────────────────────────────────
+    // Nivel de riesgo: 'alto' | 'medio' | 'bajo' | (ausente = desconocido)
+    const ADITIVOS = {
+      'e100':  { nombre: 'Curcumina',                 riesgo: 'bajo',  info: 'Colorante natural de cúrcuma. Considerado seguro.' },
+      'e101':  { nombre: 'Riboflavina (B2)',           riesgo: 'bajo',  info: 'Colorante natural. Vitamina B2.' },
+      'e102':  { nombre: 'Tartrazina',                 riesgo: 'alto',  info: 'Colorante azo. Hiperactividad en niños. Prohibido en varios países.' },
+      'e104':  { nombre: 'Amarillo de quinoleína',     riesgo: 'medio', info: 'Colorante sintético. Posibles reacciones alérgicas.' },
+      'e110':  { nombre: 'Amarillo anaranjado S',      riesgo: 'alto',  info: 'Colorante azo. Asociado a hiperactividad infantil.' },
+      'e120':  { nombre: 'Carmín (Cochinilla)',         riesgo: 'bajo',  info: 'Colorante natural de insecto. Puede causar alergia en sensibles.' },
+      'e122':  { nombre: 'Azorrubina',                 riesgo: 'alto',  info: 'Colorante azo. Hiperactividad en niños. Prohibido en algunos países.' },
+      'e123':  { nombre: 'Amaranto',                   riesgo: 'alto',  info: 'Colorante azo. Prohibido en EE.UU.' },
+      'e124':  { nombre: 'Rojo cochinilla A (Ponceau)', riesgo: 'alto', info: 'Colorante azo. Grupo de Southampton: hiperactividad infantil.' },
+      'e127':  { nombre: 'Eritrosina',                 riesgo: 'medio', info: 'Colorante. Contiene yodo. Puede afectar tiroides.' },
+      'e129':  { nombre: 'Rojo allura AC',             riesgo: 'alto',  info: 'Colorante azo. Grupo de Southampton.' },
+      'e131':  { nombre: 'Azul patente V',             riesgo: 'medio', info: 'Colorante sintético. Puede causar anafilaxia.' },
+      'e132':  { nombre: 'Índigo carmín',              riesgo: 'medio', info: 'Colorante sintético. Puede causar reacciones alérgicas.' },
+      'e133':  { nombre: 'Azul brillante FCF',         riesgo: 'medio', info: 'Colorante sintético. Evitar con asma.' },
+      'e150a': { nombre: 'Caramelo (clase I)',          riesgo: 'bajo',  info: 'Colorante de caramelo simple. Natural.' },
+      'e150c': { nombre: 'Caramelo amoníaco (clase III)', riesgo: 'medio', info: 'Puede contener 4-metilimidazol (4-MI), potencialmente carcinógeno.' },
+      'e150d': { nombre: 'Caramelo sulfítico-amónico (clase IV)', riesgo: 'medio', info: 'Presente en colas. Contiene 4-MI.' },
+      'e151':  { nombre: 'Negro brillante BN',         riesgo: 'medio', info: 'Colorante azo. Prohibido en EE.UU.' },
+      'e160a': { nombre: 'Beta-carotenos',             riesgo: 'bajo',  info: 'Colorante natural. Precursor de vitamina A.' },
+      'e171':  { nombre: 'Dióxido de titanio',         riesgo: 'alto',  info: 'Blanqueante. Prohibido en la UE desde 2022 por posible genotoxicidad.' },
+      'e172':  { nombre: 'Óxidos de hierro',           riesgo: 'bajo',  info: 'Colorante mineral. Generalmente seguro.' },
+      'e200':  { nombre: 'Ácido sórbico',              riesgo: 'bajo',  info: 'Conservante natural. Ampliamente considerado seguro.' },
+      'e202':  { nombre: 'Sorbato de potasio',         riesgo: 'bajo',  info: 'Conservante. Puede causar irritación en personas sensibles.' },
+      'e210':  { nombre: 'Ácido benzoico',             riesgo: 'medio', info: 'Conservante. Con vitamina C puede formar benceno (carcinógeno).' },
+      'e211':  { nombre: 'Benzoato de sodio',          riesgo: 'alto',  info: 'Conservante. Puede reaccionar con vitamina C formando benceno.' },
+      'e212':  { nombre: 'Benzoato de potasio',        riesgo: 'alto',  info: 'Conservante. Mismo riesgo que E211.' },
+      'e220':  { nombre: 'Dióxido de azufre',          riesgo: 'medio', info: 'Conservante. Puede desencadenar asma y alergias.' },
+      'e221':  { nombre: 'Sulfito de sodio',           riesgo: 'medio', info: 'Conservante. Puede provocar asma en sensibles.' },
+      'e249':  { nombre: 'Nitrito de potasio',         riesgo: 'alto',  info: 'Conservante en carnes. Puede formar nitrosaminas cancerígenas con las proteínas.' },
+      'e250':  { nombre: 'Nitrito de sodio',           riesgo: 'alto',  info: 'Conservante en carnes procesadas. Precursor de nitrosaminas carcinógenas.' },
+      'e251':  { nombre: 'Nitrato de sodio',           riesgo: 'medio', info: 'Conservante. Precursor de nitrosaminas.' },
+      'e252':  { nombre: 'Nitrato de potasio',         riesgo: 'medio', info: 'Conservante. Precursor de nitrosaminas.' },
+      'e270':  { nombre: 'Ácido láctico',              riesgo: 'bajo',  info: 'Acidulante natural. Presente en fermentados. Seguro.' },
+      'e296':  { nombre: 'Ácido málico',               riesgo: 'bajo',  info: 'Acidulante natural de frutas. Seguro.' },
+      'e300':  { nombre: 'Ácido ascórbico (Vitamina C)', riesgo: 'bajo', info: 'Antioxidante natural. Vitamina C. Seguro.' },
+      'e320':  { nombre: 'BHA (Butilhidroxianisol)',   riesgo: 'alto',  info: 'Antioxidante sintético. Posible carcinógeno. Disruptor endocrino.' },
+      'e321':  { nombre: 'BHT (Butilhidroxitolueno)', riesgo: 'medio', info: 'Antioxidante sintético. Posible disruptor endocrino.' },
+      'e330':  { nombre: 'Ácido cítrico',              riesgo: 'bajo',  info: 'Acidulante natural. Presente en cítricos. Seguro.' },
+      'e407':  { nombre: 'Carragenano',                riesgo: 'medio', info: 'Espesante. Estudios asocian su consumo a inflamación intestinal.' },
+      'e412':  { nombre: 'Goma guar',                  riesgo: 'bajo',  info: 'Espesante natural. Generalmente seguro.' },
+      'e414':  { nombre: 'Goma arábiga (acacia)',      riesgo: 'bajo',  info: 'Espesante natural. Fibra soluble. Seguro.' },
+      'e415':  { nombre: 'Goma xantana',               riesgo: 'bajo',  info: 'Espesante. Puede causar molestias digestivas en grandes cantidades.' },
+      'e420':  { nombre: 'Sorbitol',                   riesgo: 'bajo',  info: 'Edulcorante. Efecto laxante a dosis altas.' },
+      'e440':  { nombre: 'Pectinas',                   riesgo: 'bajo',  info: 'Espesante natural de frutas. Fibra dietética. Seguro.' },
+      'e471':  { nombre: 'Mono y diglicéridos de ácidos grasos', riesgo: 'bajo', info: 'Emulgente. Puede contener ácidos grasos trans.' },
+      'e476':  { nombre: 'PGPR (Poliglicerol polirricinoleato)', riesgo: 'bajo', info: 'Emulgente común del chocolate. Generalmente seguro.' },
+      'e500':  { nombre: 'Carbonatos de sodio',        riesgo: 'bajo',  info: 'Agente leudante. Levaduras en polvo. Seguro.' },
+      'e621':  { nombre: 'Glutamato monosódico (MSG)', riesgo: 'medio', info: 'Potenciador de sabor. Sensibilidad en algunas personas ("síndrome MSG").' },
+      'e627':  { nombre: 'Guanilato disódico',         riesgo: 'bajo',  info: 'Potenciador de sabor. Evitar en gota y hiperuricemia.' },
+      'e631':  { nombre: 'Inosinato disódico',         riesgo: 'bajo',  info: 'Potenciador de sabor. Evitar en gota.' },
+      'e901':  { nombre: 'Cera de abejas',             riesgo: 'bajo',  info: 'Agente de recubrimiento natural. Seguro.' },
+      'e950':  { nombre: 'Acesulfamo K (Ace-K)',       riesgo: 'medio', info: 'Edulcorante artificial. Debates sobre efectos a largo plazo.' },
+      'e951':  { nombre: 'Aspartamo',                  riesgo: 'medio', info: 'Edulcorante artificial. Contraindicado en fenilcetonuria (PKU).' },
+      'e952':  { nombre: 'Ciclamato',                  riesgo: 'medio', info: 'Edulcorante. Prohibido en EE.UU. Permitido en UE.' },
+      'e954':  { nombre: 'Sacarina',                   riesgo: 'medio', info: 'Edulcorante artificial. Debates sobre seguridad en exposición crónica.' },
+      'e955':  { nombre: 'Sucralosa',                  riesgo: 'bajo',  info: 'Edulcorante. Puede alterar la microbiota intestinal.' },
+      'e960':  { nombre: 'Glucósidos de esteviol (Stevia)', riesgo: 'bajo', info: 'Edulcorante natural de stevia. Considerado seguro.' },
+      'e967':  { nombre: 'Xilitol',                    riesgo: 'bajo',  info: 'Edulcorante natural. Tóxico para perros. En humanos, seguro.' },
+    };
+
+    // ── Descripciones NOVA ────────────────────────────────────────────────
+    const NOVA_INFO = {
+      1: 'Sin procesar o mínimamente procesado',
+      2: 'Ingredientes culinarios procesados',
+      3: 'Alimento procesado',
+      4: 'Producto ultraprocesado',
+    };
+
+    // ── Mapa de alérgenos ─────────────────────────────────────────────────
+    const ALERGENOS_MAP = {
+      'en:gluten':    'Gluten',        'en:wheat':     'Trigo',
+      'en:rye':       'Centeno',       'en:barley':    'Cebada',
+      'en:oats':      'Avena',         'en:milk':      'Lácteos',
+      'en:eggs':      'Huevo',         'en:fish':      'Pescado',
+      'en:crustaceans': 'Crustáceos',  'en:molluscs':  'Moluscos',
+      'en:nuts':      'Frutos secos',  'en:peanuts':   'Cacahuete / Maní',
+      'en:soybeans':  'Soja',          'en:celery':    'Apio',
+      'en:mustard':   'Mostaza',       'en:sesame-seeds': 'Sésamo',
+      'en:lupin':     'Altramuces',
+      'en:sulphur-dioxide-and-sulphites': 'Sulfitos',
+    };
+
+    // ── Estado ────────────────────────────────────────────────────────────
+    let camaraQr    = null;
+    let camaraActiva = false;
+
+    // ── Cambiar pestaña ───────────────────────────────────────────────────
+    function cambiarTab(tab, btn) {
+      if (camaraActiva) detenerCamara();
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('activo'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('activo'));
+      btn.classList.add('activo');
+      document.getElementById('pane-' + tab).classList.add('activo');
+    }
+
+    // ── Cámara ────────────────────────────────────────────────────────────
+    function toggleCamara() {
+      camaraActiva ? detenerCamara() : iniciarCamara();
+    }
+
+    function iniciarCamara() {
+      const btn = document.getElementById('btn-camara');
+      btn.textContent = 'Iniciando cámara…';
+      btn.disabled = true;
+
+      camaraQr = new Html5Qrcode('camara-preview');
+      camaraQr.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 100 } },
+        (codigo) => {                   // Éxito
+          detenerCamara();
+          buscarProducto(codigo);
+        },
+        () => { /* fallo de frame — ignorar */ }
+      ).then(() => {
+        camaraActiva = true;
+        btn.textContent = '⏹ Detener cámara';
+        btn.classList.add('parar');
+        btn.disabled = false;
+      }).catch(err => {
+        btn.textContent = '📷 Activar cámara';
+        btn.disabled = false;
+        mostrarError('No se pudo acceder a la cámara.<br>Asegúrate de permitir el acceso en el navegador.');
+      });
+    }
+
+    function detenerCamara() {
+      if (camaraQr && camaraActiva) {
+        camaraQr.stop().catch(() => {});
+        camaraActiva = false;
+      }
+      const btn = document.getElementById('btn-camara');
+      btn.textContent = '📷 Activar cámara';
+      btn.classList.remove('parar');
+      btn.disabled = false;
+    }
+
+    // ── Lectura de imagen ─────────────────────────────────────────────────
+    document.getElementById('input-imagen').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Preview
+      const prev = document.getElementById('upload-preview');
+      prev.src = URL.createObjectURL(file);
+      prev.style.display = 'block';
+
+      // Escanear código en la imagen
+      const lector = new Html5Qrcode('qr-file-reader');
+      lector.scanFile(file, false)
+        .then(codigo => { lector.clear(); buscarProducto(codigo); })
+        .catch(() => {
+          lector.clear();
+          mostrarError(
+            'No se detectó ningún código de barras en la imagen.<br>' +
+            'Intenta con más luz, mayor resolución, o usa la entrada manual.'
+          );
+        });
+    });
+
+    // Drag & drop sobre la zona de carga
+    const zona = document.getElementById('upload-zone');
+    zona.addEventListener('dragover',  e => { e.preventDefault(); zona.classList.add('drag-over'); });
+    zona.addEventListener('dragleave', () => zona.classList.remove('drag-over'));
+    zona.addEventListener('drop', e => {
+      e.preventDefault();
+      zona.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) {
+        const dt = new DataTransfer();
+        dt.items.add(f);
+        const inp = document.getElementById('input-imagen');
+        inp.files = dt.files;
+        inp.dispatchEvent(new Event('change'));
+      }
+    });
+
+    // ── Entrada manual ────────────────────────────────────────────────────
+    function buscarDesdeManual() {
+      const cod = document.getElementById('input-codigo').value.trim();
+      if (cod) buscarProducto(cod);
+    }
+
+    // ── Consulta a Open Food Facts ────────────────────────────────────────
+    async function buscarProducto(codigo) {
+      if (!codigo) return;
+
+      // Preparar UI
+      document.getElementById('input-card').style.display   = 'none';
+      document.getElementById('error-card').classList.remove('visible');
+      document.getElementById('resultado').classList.remove('visible');
+      document.getElementById('btn-nuevo').style.display    = 'none';
+      document.getElementById('loading').classList.add('visible');
+
+      try {
+        const url  = `https://world.openfoodfacts.org/api/v0/product/${codigo}.json`;
+        const res  = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+
+        if (data.status === 0 || !data.product) {
+          mostrarError(
+            `Producto <strong>${codigo}</strong> no encontrado en la base de datos.<br>` +
+            'Verifica que el número sea correcto.'
+          );
+          return;
+        }
+        renderResultado(data.product, codigo);
+
+      } catch (err) {
+        mostrarError(
+          'Error de conexión.<br>' +
+          'La cámara y la subida de fotos requieren HTTPS o Live Server.<br>' +
+          'La búsqueda manual también necesita conexión a internet.'
+        );
+      } finally {
+        document.getElementById('loading').classList.remove('visible');
+      }
+    }
+
+    // ── Renderizar el reporte ─────────────────────────────────────────────
+    function renderResultado(p, codigo) {
+      // Datos básicos
+      const nombre   = p.product_name || p.product_name_es || p.product_name_en || 'Nombre no disponible';
+      const marca    = p.brands    || '';
+      const cantidad = p.quantity  || '';
+      const imagen   = p.image_url || p.image_front_url || '';
+
+      // Imagen del producto
+      const imgEl = imagen
+        ? `<img class="producto-imagen" src="${imagen}" alt="${nombre}"
+               onerror="this.outerHTML='<div class=producto-sin-imagen>🍽️</div>'">`
+        : `<div class="producto-sin-imagen">🍽️</div>`;
+
+      // ── Nutri-Score ──
+      const ns = (p.nutriscore_grade || '').toLowerCase();
+      const letrasNS = ['a','b','c','d','e'].map(l =>
+        `<div class="ns-letra ${l}${l===ns?' activo':''}">${l.toUpperCase()}</div>`
+      ).join('');
+
+      // ── NOVA ──
+      const nova = parseInt(p.nova_group) || null;
+      const numerosNova = [1,2,3,4].map(n =>
+        `<div class="nova-num n${n}${n===nova?' activo':''}">${n}</div>`
+      ).join('');
+
+      // ── Tabla nutricional ──
+      const nut = p.nutriments || {};
+      const fmt = (v) => v != null ? (+v).toFixed(1) : '—';
+      const filasNut = [
+        { label:'Energía',         val: fmt(nut['energy-kcal_100g']),   unit:'kcal', cls:'fila-e' },
+        { label:'Grasas',          val: fmt(nut['fat_100g']),            unit:'g' },
+        { label:'↳ Saturadas',     val: fmt(nut['saturated-fat_100g']), unit:'g', cls:'sub' },
+        { label:'Carbohidratos',   val: fmt(nut['carbohydrates_100g']),  unit:'g' },
+        { label:'↳ Azúcares',      val: fmt(nut['sugars_100g']),         unit:'g', cls:'sub' },
+        { label:'Fibra',           val: fmt(nut['fiber_100g']),          unit:'g' },
+        { label:'Proteínas',       val: fmt(nut['proteins_100g']),       unit:'g' },
+        { label:'Sal',             val: fmt(nut['salt_100g']),           unit:'g' },
+      ].map(f =>
+        `<tr class="${f.cls||''}">
+           <td>${f.label}</td>
+           <td>${f.val !== '—' ? f.val + ' ' + f.unit : '—'}</td>
+         </tr>`
+      ).join('');
+
+      // ── Ingredientes ──
+      const ings = p.ingredients_text || p.ingredients_text_es || '';
+
+      // ── Aditivos ──
+      const adTags = p.additives_tags || [];
+      let adHtml = '';
+      if (adTags.length === 0) {
+        adHtml = '<p class="aditivos-ok">✅ No se detectaron aditivos</p>';
+      } else {
+        const items = adTags.map(tag => {
+          const clave  = tag.replace('en:', '').toLowerCase();
+          const info   = ADITIVOS[clave];
+          const riesgo = info ? info.riesgo : 'desconocido';
+          const nombre = info ? info.nombre : 'Aditivo';
+          const detalle= info ? info.info   : 'Sin datos en nuestra base.';
+          const icono  = { alto:'🔴', medio:'🟡', bajo:'🟢', desconocido:'⚪' }[riesgo];
+          return `
+            <div class="aditivo-item ${riesgo}">
+              <span class="aditivo-cod">${clave.toUpperCase()}</span>
+              <div>
+                <div class="aditivo-nombre">${icono} ${nombre}</div>
+                <div class="aditivo-detalle">${detalle}</div>
+              </div>
+            </div>`;
+        });
+        adHtml = `<div class="aditivos-lista">${items.join('')}</div>`;
+      }
+
+      // ── Alérgenos ──
+      const alTags = p.allergens_hierarchy || [];
+      let alHtml = '';
+      if (alTags.length === 0) {
+        alHtml = '<p class="alergenos-ok">No se declararon alérgenos</p>';
+      } else {
+        alHtml = `<div class="alergenos-lista">` +
+          alTags.map(a => {
+            const n = ALERGENOS_MAP[a] || a.replace('en:','').replace(/-/g,' ');
+            return `<span class="alergeno-tag">⚠️ ${n.charAt(0).toUpperCase()+n.slice(1)}</span>`;
+          }).join('') +
+          `</div>`;
+      }
+
+      // ── Montar HTML completo del reporte ──
+      document.getElementById('resultado').innerHTML = `
+
+        <!-- Cabecera producto -->
+        <div class="producto-header">
+          ${imgEl}
+          <div class="producto-info">
+            <div class="producto-nombre">${nombre}</div>
+            ${marca ? `<div class="producto-marca">${marca}${cantidad ? ' · '+cantidad : ''}</div>` : ''}
+            <div class="producto-codigo">Código: ${codigo}</div>
+          </div>
+        </div>
+
+        <!-- Nutri-Score + NOVA -->
+        <div class="badges-row">
+          <div class="widget">
+            <div class="widget-titulo">🍎 Nutri-Score</div>
+            ${ns
+              ? `<div class="nutriscore-letras">${letrasNS}</div>`
+              : '<p class="no-data">No disponible</p>'}
+          </div>
+          <div class="widget">
+            <div class="widget-titulo">🏭 NOVA — Nivel de procesamiento</div>
+            ${nova
+              ? `<div class="nova-numeros">${numerosNova}</div>
+                 <div class="nova-desc">${NOVA_INFO[nova]}</div>`
+              : '<p class="no-data">No disponible</p>'}
+          </div>
+        </div>
+
+        <!-- Tabla nutricional -->
+        <div class="seccion">
+          <div class="seccion-titulo">
+            📊 Información nutricional
+            <span style="color:var(--muted);font-size:11px;">(por 100 g)</span>
+          </div>
+          <table class="tabla-nut">${filasNut}</table>
+        </div>
+
+        <!-- Ingredientes -->
+        ${ings ? `
+        <div class="seccion">
+          <div class="seccion-titulo">🧪 Ingredientes</div>
+          <p class="ingredientes-txt">${ings}</p>
+        </div>` : ''}
+
+        <!-- Aditivos -->
+        <div class="seccion">
+          <div class="seccion-titulo">⚗️ Aditivos (${adTags.length})</div>
+          ${adHtml}
+        </div>
+
+        <!-- Alérgenos -->
+        <div class="seccion">
+          <div class="seccion-titulo">🚨 Alérgenos</div>
+          ${alHtml}
+        </div>
+      `;
+
+      document.getElementById('resultado').classList.add('visible');
+      document.getElementById('btn-nuevo').style.display = 'block';
+    }
+
+    // ── Mostrar error ─────────────────────────────────────────────────────
+    function mostrarError(msg) {
+      document.getElementById('loading').classList.remove('visible');
+      document.getElementById('error-msg').innerHTML = msg;
+      document.getElementById('error-card').classList.add('visible');
+      document.getElementById('input-card').style.display = '';
+    }
+
+    // ── Nuevo escaneo ─────────────────────────────────────────────────────
+    function nuevoEscaneo() {
+      document.getElementById('resultado').classList.remove('visible');
+      document.getElementById('error-card').classList.remove('visible');
+      document.getElementById('input-card').style.display = '';
+      document.getElementById('btn-nuevo').style.display = 'none';
+      document.getElementById('input-codigo').value = '';
+      document.getElementById('upload-preview').style.display = 'none';
+    }
+
+  </script>
+</body>
+</html>

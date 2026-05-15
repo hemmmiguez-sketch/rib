@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RIB — Reporte de Informe Biológico</title>
+  <!-- PWA: manifest e íconos -->
+  <link rel="manifest" href="/rib/manifest.json">
+  <meta name="theme-color" content="#4caf50">
+  <link rel="apple-touch-icon" href="/rib/icon-192.png">
   <!-- Librería de lectura de códigos de barras (cdnjs) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
   <style>
@@ -856,6 +860,17 @@
       document.getElementById('upload-preview').style.display = 'none';
     }
 
+  </script>
+
+  <!-- Registro del Service Worker para PWA -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/rib/sw.js')
+          .then(() => console.log('Service Worker registrado'))
+          .catch(err => console.log('SW error:', err));
+      });
+    }
   </script>
 </body>
 </html>

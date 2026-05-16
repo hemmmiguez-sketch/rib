@@ -1,5 +1,5 @@
 // Service Worker para RIB — Informe Biológico de Alimentos
-const CACHE_NAME = 'rib-v1';
+const CACHE_NAME = 'rib-v2';
 const ASSETS = [
   '/rib/',
   '/rib/index.html',

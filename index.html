@@ -667,8 +667,13 @@
       document.getElementById('loading').classList.add('visible');
 
       try {
-        const url  = `https://world.openfoodfacts.org/api/v0/product/${codigo}.json`;
-        const res  = await fetch(url);
+        // API v2 de Open Food Facts (más estable que v0)
+        const url  = `https://world.openfoodfacts.org/api/v2/product/${codigo}`;
+        const res  = await fetch(url, {
+          headers: {
+            'User-Agent': 'RIB-NutritionApp/1.0 (https://hemmmiguez-sketch.github.io/rib/)'
+          }
+        });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
 
@@ -683,9 +688,8 @@
 
       } catch (err) {
         mostrarError(
-          'Error de conexión.<br>' +
-          'La cámara y la subida de fotos requieren HTTPS o Live Server.<br>' +
-          'La búsqueda manual también necesita conexión a internet.'
+          'Error de conexión con Open Food Facts.<br>' +
+          'Verifica tu conexión a internet e intenta de nuevo.'
         );
       } finally {
         document.getElementById('loading').classList.remove('visible');
